@@ -5,47 +5,34 @@ import json
 import time
 import random
 import threading
-from datetime import datetime, timedelta
-import os
+from datetime import datetime
 
 
 class FacebookAutoPostApp:
     def __init__(self, root):
         self.root = root
         self.root.title("Facebook AutoPost - Python Desktop")
-        self.root.geometry("700x600")
+        self.root.geometry("700x500")
         self.root.resizable(False, False)
 
         # Variabel input
-        self.app_id = tk.StringVar()
-        self.app_secret = tk.StringVar()
         self.page_id = tk.StringVar()
         self.access_token = tk.StringVar()
         self.json_path = tk.StringVar()
-
-        # File penyimpanan token
-        self.token_file = "token.json"
 
         # Frame Input
         frame = tk.LabelFrame(root, text="Konfigurasi", padx=10, pady=10)
         frame.pack(fill="x", padx=10, pady=10)
 
-        tk.Label(frame, text="App ID:").grid(row=0, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.app_id, width=50).grid(row=0, column=1, padx=5, pady=2)
+        tk.Label(frame, text="Page ID:").grid(row=0, column=0, sticky="w")
+        tk.Entry(frame, textvariable=self.page_id, width=50).grid(row=0, column=1, padx=5, pady=2)
 
-        tk.Label(frame, text="App Secret:").grid(row=1, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.app_secret, width=50, show="*").grid(row=1, column=1, padx=5, pady=2)
+        tk.Label(frame, text="Access Token:").grid(row=1, column=0, sticky="w")
+        tk.Entry(frame, textvariable=self.access_token, width=50, show="*").grid(row=1, column=1, padx=5, pady=2)
 
-        tk.Label(frame, text="Page ID:").grid(row=2, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.page_id, width=50).grid(row=2, column=1, padx=5, pady=2)
-
-        tk.Label(frame, text="Access Token:").grid(row=3, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.access_token, width=50, show="*").grid(row=3, column=1, padx=5, pady=2)
-        tk.Button(frame, text="Simpan Token", command=self.save_token).grid(row=3, column=2, padx=5)
-
-        tk.Label(frame, text="File JSON Produk:").grid(row=4, column=0, sticky="w")
-        tk.Entry(frame, textvariable=self.json_path, width=50, state="readonly").grid(row=4, column=1, padx=5, pady=2)
-        tk.Button(frame, text="Browse...", command=self.browse_json).grid(row=4, column=2, padx=5)
+        tk.Label(frame, text="File JSON Produk:").grid(row=2, column=0, sticky="w")
+        tk.Entry(frame, textvariable=self.json_path, width=50, state="readonly").grid(row=2, column=1, padx=5, pady=2)
+        tk.Button(frame, text="Browse...", command=self.browse_json).grid(row=2, column=2, padx=5)
 
         # Tombol mulai
         self.start_button = tk.Button(root, text="🚀 Mulai Posting", command=self.start_autopost, bg="#4CAF50", fg="white", font=("Segoe UI", 10, "bold"))
@@ -66,89 +53,6 @@ class FacebookAutoPostApp:
         self.delay_min = 120
         self.delay_max = 300
 
-        # Load token jika sudah tersimpan
-        self.load_token()
-
-    # === FILE TOKEN ===
-    def load_token(self):
-        if os.path.exists(self.token_file):
-            try:
-                with open(self.token_file, "r") as f:
-                    data = json.load(f)
-                    self.access_token.set(data.get("access_token", ""))
-            except Exception as e:
-                self.log(f"⚠️ Gagal membaca token.json: {e}")
-
-    def save_token(self):
-        token_data = {
-            "access_token": self.access_token.get(),
-            "expires_at": (datetime.now() + timedelta(days=60)).isoformat()
-        }
-        with open(self.token_file, "w") as f:
-            json.dump(token_data, f, indent=4)
-        self.log("💾 Token disimpan ke token.json")
-
-    def get_token_data(self):
-        if not os.path.exists(self.token_file):
-            return None
-        with open(self.token_file, "r") as f:
-            return json.load(f)
-
-    def is_token_expired(self, token_data):
-        try:
-            expires_at = datetime.fromisoformat(token_data["expires_at"])
-            return datetime.now() >= expires_at
-        except:
-            return True
-
-    def refresh_token(self, old_token):
-        self.log("🔄 Refreshing token...")
-        url = (
-            f"https://graph.facebook.com/v20.0/oauth/access_token?"
-            f"grant_type=fb_exchange_token&"
-            f"client_id={self.app_id.get()}&"
-            f"client_secret={self.app_secret.get()}&"
-            f"fb_exchange_token={old_token}"
-        )
-
-        try:
-            response = requests.get(url)
-            data = response.json()
-
-            if "access_token" in data:
-                new_token = data["access_token"]
-                expires_in = data.get("expires_in", 5184000)  # 60 hari default
-                expires_at = (datetime.now() + timedelta(seconds=expires_in)).isoformat()
-
-                token_data = {
-                    "access_token": new_token,
-                    "expires_at": expires_at
-                }
-                with open(self.token_file, "w") as f:
-                    json.dump(token_data, f, indent=4)
-
-                self.access_token.set(new_token)
-                self.log("✅ Token berhasil diperbarui!")
-                return new_token
-            else:
-                self.log(f"❌ Gagal refresh token: {data}")
-        except Exception as e:
-            self.log(f"❌ Error saat refresh token: {e}")
-        return None
-
-    def get_valid_token(self):
-        token_data = self.get_token_data()
-        if not token_data:
-            return self.access_token.get()
-
-        if self.is_token_expired(token_data):
-            self.log("⚠️ Token expired, mencoba refresh...")
-            new_token = self.refresh_token(token_data["access_token"])
-            return new_token if new_token else token_data["access_token"]
-
-        return token_data["access_token"]
-
-    # === LOGIC APLIKASI ===
     def browse_json(self):
         filename = filedialog.askopenfilename(filetypes=[("JSON Files", "*.json")])
         if filename:
@@ -167,7 +71,9 @@ class FacebookAutoPostApp:
             messagebox.showerror("Error", "Isi semua field terlebih dahulu!")
             return
 
+        # Nonaktifkan tombol
         self.start_button.config(state="disabled", text="Sedang berjalan...")
+
         thread = threading.Thread(target=self.run_autopost)
         thread.start()
 
@@ -175,14 +81,15 @@ class FacebookAutoPostApp:
         try:
             with open(self.json_path.get(), "r", encoding="utf-8") as f:
                 produk_list = json.load(f)
+
             if not isinstance(produk_list, list):
                 raise ValueError("Format JSON tidak valid")
+
         except Exception as e:
             self.log(f"❌ Gagal membaca file JSON: {e}")
             self.start_button.config(state="normal", text="🚀 Mulai Posting")
             return
 
-        token = self.get_valid_token()
         self.log(f"🚀 Memulai autopost untuk {len(produk_list)} produk...")
 
         self.progress["value"] = 0
@@ -211,7 +118,11 @@ Klik untuk detail:
 {link_komisi}"""
 
             url = f"https://graph.facebook.com/{self.page_id.get()}/feed"
-            data = {"message": message, "link": link_komisi, "access_token": token}
+            data = {
+                "message": message,
+                "link": link_komisi,
+                "access_token": self.access_token.get(),
+            }
 
             try:
                 response = requests.post(url, data=data, timeout=20)
@@ -222,13 +133,15 @@ Klik untuk detail:
             except Exception as e:
                 self.log(f"❌ [{index}] Error: {e}")
 
+            # Update progress
             self.progress["value"] = index + 1
 
+            # Delay acak
             if index < len(produk_list) - 1:
                 delay = random.randint(self.delay_min, self.delay_max)
                 menit = round(delay / 60, 1)
                 self.log(f"⏳ Menunggu {menit} menit ({delay} detik) sebelum posting berikutnya...\n")
-                for _ in range(delay):
+                for i in range(delay):
                     time.sleep(1)
 
         self.log("🎉 Selesai autopost semua produk!\n")
