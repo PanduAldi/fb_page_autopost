@@ -148,7 +148,7 @@ build/
 
 ## 📸 Screenshot
 
-![Preview GUI](docs/screenshot.png)
+![Preview GUI](ss.png)
 
 > GUI sederhana dengan input konfigurasi, progress bar, dan log aktivitas.
 
