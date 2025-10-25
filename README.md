@@ -158,3 +158,9 @@ build/
 
 Dibuat dengan niat membantu mempermudah posting otomatis ke Facebook tanpa harus membuka browser.  
 Gunakan secara bertanggung jawab dan ikuti [Facebook Platform Policy](https://developers.facebook.com/policy/).
+
+## Dukungan
+
+Kalo kamu suka sama proyek ini dan ngerasa kebantu, boleh banget lho traktir aku kopi! Biar makin semangat ngodingnya!
+
+<a href="https://saweria.co/pandualdi" target="_blank"><img src="https://www.buymeacoffee.com/assets/img/custom_images/orange_img.png" alt="Buy Me a Coffee" style="height: 41px !important;width: 174px !important;" ></a>
