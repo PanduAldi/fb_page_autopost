@@ -12,7 +12,7 @@ import os
 class FacebookAutoPostApp:
     def __init__(self, root):
         self.root = root
-        self.root.title("Facebook AutoPost - Python Desktop")
+        self.root.title("Facebook Page AutoPost - By Pandu Aldi P.")
         self.root.geometry("700x600")
         self.root.resizable(False, False)
 
@@ -41,7 +41,13 @@ class FacebookAutoPostApp:
 
         tk.Label(frame, text="Access Token:").grid(row=3, column=0, sticky="w")
         tk.Entry(frame, textvariable=self.access_token, width=50, show="*").grid(row=3, column=1, padx=5, pady=2)
-        tk.Button(frame, text="Simpan Token", command=self.save_token).grid(row=3, column=2, padx=5)
+
+        # Tombol Simpan & Refresh Token
+        btn_frame = tk.Frame(frame)
+        btn_frame.grid(row=3, column=2, padx=5)
+
+        tk.Button(btn_frame, text="💾 Simpan", command=self.save_token, width=10).pack(side="left", padx=2)
+        tk.Button(btn_frame, text="🔄 Refresh", command=self.manual_refresh_token, width=10).pack(side="left", padx=2)
 
         tk.Label(frame, text="File JSON Produk:").grid(row=4, column=0, sticky="w")
         tk.Entry(frame, textvariable=self.json_path, width=50, state="readonly").grid(row=4, column=1, padx=5, pady=2)
@@ -71,13 +77,41 @@ class FacebookAutoPostApp:
 
     # === FILE TOKEN ===
     def load_token(self):
+        """Load token dari file, dan otomatis refresh jika expired."""
         if os.path.exists(self.token_file):
             try:
                 with open(self.token_file, "r") as f:
                     data = json.load(f)
-                    self.access_token.set(data.get("access_token", ""))
+                    token = data.get("access_token")
+                    expires_at = datetime.fromisoformat(data.get("expires_at", datetime.now().isoformat()))
+
+                    # Cek validitas token langsung ke Graph API
+                    self.log("🔎 Mengecek validitas token di server Facebook...")
+                    check = requests.get(
+                        "https://graph.facebook.com/debug_token",
+                        params={
+                            "input_token": token,
+                            "access_token": f"{self.app_id.get()}|{self.app_secret.get()}"
+                        }
+                    ).json()
+
+                    is_valid = check.get("data", {}).get("is_valid", False)
+
+                    if not is_valid or datetime.now() >= expires_at:
+                        self.log("⚠️ Token kadaluarsa atau tidak valid, mencoba refresh otomatis...")
+                        refreshed = self.refresh_token(token)
+                        if refreshed:
+                            self.log("✅ Token berhasil diperbarui otomatis saat startup!")
+                        else:
+                            self.log("❌ Gagal refresh token otomatis, silakan isi token baru.")
+                    else:
+                        self.access_token.set(token)
+                        self.log("🔑 Token masih valid dan siap digunakan.")
+
             except Exception as e:
                 self.log(f"⚠️ Gagal membaca token.json: {e}")
+        else:
+            self.log("ℹ️ Belum ada file token.json, silakan masukkan token lalu klik 'Simpan Token'.")
 
     def save_token(self):
         token_data = {
@@ -88,21 +122,29 @@ class FacebookAutoPostApp:
             json.dump(token_data, f, indent=4)
         self.log("💾 Token disimpan ke token.json")
 
+    def manual_refresh_token(self):
+        """Fungsi tombol Refresh Token manual"""
+        token_data = self.get_token_data()
+        if not token_data:
+            messagebox.showerror("Error", "Token belum disimpan. Simpan token terlebih dahulu.")
+            return
+
+        old_token = token_data["access_token"]
+        new_token = self.refresh_token(old_token)
+        if new_token:
+            self.access_token.set(new_token)
+            messagebox.showinfo("Sukses", "Token berhasil diperbarui!")
+        else:
+            messagebox.showerror("Gagal", "Gagal memperbarui token. Periksa App ID & Secret Anda.")
+
     def get_token_data(self):
         if not os.path.exists(self.token_file):
             return None
         with open(self.token_file, "r") as f:
             return json.load(f)
 
-    def is_token_expired(self, token_data):
-        try:
-            expires_at = datetime.fromisoformat(token_data["expires_at"])
-            return datetime.now() >= expires_at
-        except:
-            return True
-
     def refresh_token(self, old_token):
-        self.log("🔄 Refreshing token...")
+        self.log("🔄 Refreshing token otomatis...")
         url = (
             f"https://graph.facebook.com/v20.0/oauth/access_token?"
             f"grant_type=fb_exchange_token&"
@@ -117,7 +159,7 @@ class FacebookAutoPostApp:
 
             if "access_token" in data:
                 new_token = data["access_token"]
-                expires_in = data.get("expires_in", 5184000)  # 60 hari default
+                expires_in = data.get("expires_in", 5184000)  # default 60 hari
                 expires_at = (datetime.now() + timedelta(seconds=expires_in)).isoformat()
 
                 token_data = {
@@ -128,7 +170,7 @@ class FacebookAutoPostApp:
                     json.dump(token_data, f, indent=4)
 
                 self.access_token.set(new_token)
-                self.log("✅ Token berhasil diperbarui!")
+                self.log("✅ Token berhasil diperbarui dan disimpan.")
                 return new_token
             else:
                 self.log(f"❌ Gagal refresh token: {data}")
@@ -137,12 +179,14 @@ class FacebookAutoPostApp:
         return None
 
     def get_valid_token(self):
+        """Pastikan token valid sebelum dipakai posting."""
         token_data = self.get_token_data()
         if not token_data:
             return self.access_token.get()
 
-        if self.is_token_expired(token_data):
-            self.log("⚠️ Token expired, mencoba refresh...")
+        expires_at = datetime.fromisoformat(token_data["expires_at"])
+        if datetime.now() >= expires_at:
+            self.log("⚠️ Token expired, mencoba refresh otomatis...")
             new_token = self.refresh_token(token_data["access_token"])
             return new_token if new_token else token_data["access_token"]
 
